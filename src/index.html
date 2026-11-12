@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Landing</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10151d; color: #e7edf5; }
+    body { margin: 0; }
+    main { max-inline-size: 90rem; margin-inline: auto; padding: 2rem clamp(1rem, 4vw, 3rem); }
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-block-end: 2rem; }
+    h1 { font-size: clamp(1.7rem, 1.3rem + 1.5vw, 2.5rem); margin: 0; letter-spacing: -.04em; }
+    .subtitle { color: #a7b5c7; margin: .4rem 0 0; }
+    button { background: #bce8d1; color: #12251c; border: 0; border-radius: .6rem; padding: .75rem 1.1rem; font: inherit; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    :where(a, button):focus-visible { outline: 3px solid #ffda89; outline-offset: 4px; }
+    #status { color: #c0ccda; min-block-size: 1.5em; }
+    ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1.2rem; list-style: none; padding: 0; }
+    li { min-inline-size: 0; position: relative; }
+    a { display: block; border: 1px solid #334354; border-radius: .8rem; background: #1b2532; color: inherit; text-decoration: none; overflow: clip; }
+    a:hover { border-color: #bce8d1; }
+    img { display: block; inline-size: 100%; block-size: auto; aspect-ratio: auto 16 / 10; background: #fff; }
+    .placeholder { aspect-ratio: 16 / 10; background: #fff; }
+    .caption { display: flex; justify-content: space-between; gap: .5rem; padding: 1rem 1rem .5rem; font-weight: 650; }
+    .caption span:last-child { color: #a7b5c7; font-weight: 400; }
+    .executable { display: block; padding: 0 1rem .35rem; overflow-wrap: anywhere; }
+    .command { display: block; padding: 0 1rem 1rem; color: #a7b5c7; font-size: .85rem; line-height: 1.4; overflow-wrap: anywhere; }
+    .tooltip { display: none; position: absolute; z-index: 2; inset: auto 0 0; max-block-size: 60vh; overflow: auto; padding: .75rem; border: 1px solid #bce8d1; border-radius: .5rem; background: #10151d; color: #e7edf5; font: .85rem/1.4 monospace; overflow-wrap: anywhere; white-space: pre-wrap; }
+    li:not(.tooltip-dismissed):has(.command:hover, .tooltip:hover, a:focus-visible) .tooltip { display: block; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>Local Landing</h1><p class="subtitle">Tus servicios locales, de un vistazo.</p></div>
+      <button type="button" id="refresh">Actualizar capturas</button>
+    </header>
+    <p id="status" role="status"></p>
+    <ul id="grid" role="list"></ul>
+  </main>
+  <script>
+    const grid = document.querySelector('#grid');
+    const status = document.querySelector('#status');
+    const refresh = document.querySelector('#refresh');
+    let renderedVersion = -1;
+    async function show() {
+      try {
+        const response = await fetch('/api/status', {cache: 'no-store'});
+        if (!response.ok) throw new Error('No se pudo consultar el servicio');
+        const data = await response.json();
+        refresh.disabled = data.scanning;
+        status.textContent = data.scanning ? 'Buscando servicios y generando capturas…' : data.ports.length ? data.ports.length + (data.ports.length === 1 ? ' servicio disponible.' : ' servicios disponibles.') : 'No se han encontrado servicios HTTP.';
+        if (renderedVersion !== data.version) {
+          grid.replaceChildren(...data.services.map(({port, hasImage, executable, command}) => {
+            const item = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = 'http://127.0.0.1:' + port;
+            let preview;
+            if (hasImage) {
+              preview = document.createElement('img');
+              preview.src = '/image/' + port + '?v=' + data.version;
+              preview.alt = '';
+              preview.width = 1280; preview.height = 800;
+            } else {
+              preview = document.createElement('div');
+              preview.className = 'placeholder';
+              preview.setAttribute('aria-hidden', 'true');
+            }
+            const caption = document.createElement('div');
+            caption.className = 'caption';
+            const name = document.createElement('span'); name.textContent = 'Puerto ' + port;
+            const address = document.createElement('span'); address.textContent = '127.0.0.1:' + port;
+            const executableName = document.createElement('span');
+            executableName.className = 'executable'; executableName.textContent = executable || 'Ejecutable no disponible';
+            const process = document.createElement('code');
+            process.className = 'command';
+            const fullCommand = command || 'Proceso no disponible';
+            const characters = Array.from(fullCommand);
+            process.textContent = characters.length > 38 ? characters.slice(0, 37).join('') + '…' : fullCommand;
+            caption.append(name, address); link.append(preview, caption, executableName, process); item.append(link);
+            if (characters.length > 38) {
+              const tooltip = document.createElement('div');
+              tooltip.className = 'tooltip'; tooltip.id = 'command-' + port;
+              tooltip.setAttribute('role', 'tooltip'); tooltip.textContent = fullCommand;
+              link.setAttribute('aria-describedby', tooltip.id);
+              item.append(tooltip);
+              item.addEventListener('pointerleave', () => item.classList.remove('tooltip-dismissed'));
+              link.addEventListener('blur', () => item.classList.remove('tooltip-dismissed'));
+            }
+            return item;
+          }));
+          renderedVersion = data.version;
+        }
+        if (data.scanning) setTimeout(show, 1200);
+      } catch {
+        refresh.disabled = false;
+        status.textContent = 'No se puede conectar con Local Landing. Consulta el journal del servicio.';
+      }
+    }
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') document.querySelectorAll('#grid li:hover, #grid li:focus-within').forEach(item => item.classList.add('tooltip-dismissed'));
+    });
+    refresh.addEventListener('click', async () => {
+      refresh.disabled = true;
+      try {
+        const response = await fetch('/api/refresh', {method: 'POST', headers: {'X-Local-Landing': 'refresh'}});
+        if (!response.ok) throw new Error('No se pudo iniciar la actualización');
+        await show();
+      } catch {
+        refresh.disabled = false;
+        status.textContent = 'No se ha podido iniciar la actualización.';
+      }
+    });
+    show();
+  </script>
+</body>
+</html>

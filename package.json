@@ -1,0 +1,10 @@
+{
+  "name": "local-landing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "test": "bun test",
+    "build": "bun build --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig src/server.ts --outfile dist/local-landing"
+  }
+}

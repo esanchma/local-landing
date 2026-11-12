@@ -1,0 +1,12 @@
+[Unit]
+Description=Local Landing
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/local-landing
+Environment=BROWSER=/usr/bin/brave-browser-stable
+Restart=no
+
+[Install]
+WantedBy=default.target
