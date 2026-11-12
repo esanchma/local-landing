@@ -1,20 +1,20 @@
 # Local Landing
 
-Panel local para descubrir servicios HTTP y abrirlos a partir de capturas. Linux, Bun y systemd de usuario.
+A local dashboard for discovering HTTP services and opening them from screenshots. Built for Linux with Bun and user-level systemd.
 
-## Funcionamiento
+## How it works
 
-Al arrancar y al pulsar **Actualizar capturas**, consulta los puertos TCP con `ss -ltnH`, prueba HTTP en `127.0.0.1` y captura cada servicio que responde. Excluye su propio puerto. Las capturas viven en memoria y en archivos temporales privados durante la generación; no hay base de datos ni configuración persistente de la aplicación.
+On startup and when you click **Actualizar capturas** (Refresh screenshots), Local Landing finds TCP ports with `ss -ltnH`, probes them over HTTP at `127.0.0.1`, and captures each service that responds. It excludes its own port. Screenshots are stored in memory and in private temporary files while they are generated; the application has no database or persistent configuration.
 
-El navegador usa el perfil predeterminado, con sus sesiones y extensiones. Visitar un servicio puede ejecutar acciones en él. Si el navegador termina sin generar un archivo de captura, el panel muestra un recuadro blanco y registra el aviso. Los demás fallos de captura y el timeout de 20 segundos siguen terminando el proceso con código 1. El servicio no se reinicia automáticamente tras un fallo.
+The browser uses its default profile, including its sessions and extensions. Visiting a service may trigger actions on it. If the browser exits without generating a screenshot file, the dashboard shows a white placeholder and logs a warning. Other capture errors and the 20-second timeout still cause the process to exit with code 1. The service does not restart automatically after a failure.
 
-Bajo cada captura se muestra el nombre de la tercera columna de `ports` y el comando del proceso que escucha en el puerto, obtenido con `lsof` y `ps`. Si alguno no es accesible, se indica que no está disponible. Los argumentos pueden contener información sensible visible en el panel. `ports` se ejecuta una vez por actualización; en esta máquina usa `sudo` para consultar `ss` y necesita poder hacerlo sin solicitar una contraseña interactiva.
+Below each screenshot, the dashboard shows the name from the third column of `ports` and the command of the process listening on the port, obtained with `lsof` and `ps`. If either is unavailable, the dashboard indicates that. Arguments may contain sensitive information visible on the dashboard. Local Landing runs `ports` once per refresh; on this machine, `ports` uses `sudo` to query `ss` and must be able to do so without an interactive password prompt.
 
-La captura usa el modo headless y una ventana de 1280 × 800. La opción `--screenshot` de Chromium captura la ventana, no garantiza una página completa.
+Screenshots use headless mode and a 1280 × 800 window. Chromium's `--screenshot` option captures the window and does not guarantee a full-page screenshot.
 
-## Desarrollar
+## Development
 
-Requiere Bun, `ss`, `lsof`, `ps`, la utilidad local `ports` y un navegador Chromium compatible. Se busca `ports` en `PATH` y, si no aparece, en `~/update.d/bin/ports`. Si no se puede ejecutar, el resto del panel sigue funcionando. `BROWSER` debe contener la ruta de un ejecutable, no una línea de comandos. Por defecto usa `brave-browser-stable`.
+Requires Bun, `ss`, `lsof`, `ps`, the local `ports` utility, and a Chromium-compatible browser. Local Landing looks for `ports` in `PATH`, then in `~/update.d/bin/ports`. If it cannot run `ports`, the rest of the dashboard still works. `BROWSER` must contain an executable path, not a command line. The default is `brave-browser-stable`.
 
 ~~~sh
 PORT=8088 BROWSER=/usr/bin/brave-browser-stable bun run dev
@@ -22,9 +22,9 @@ bun run build
 bun test
 ~~~
 
-El servidor escucha solo en `127.0.0.1`; el puerto predeterminado es 80. El binario es autocontenido para Bun y la interfaz, pero sigue necesitando `ss`, `lsof`, `ps`, `ports` y el navegador instalados.
+The server listens only on `127.0.0.1`; the default port is 80. The binary bundles Bun and the interface, but still needs `ss`, `lsof`, `ps`, `ports`, and the browser installed.
 
-## Instalar como servicio de usuario
+## Install as a user service
 
 ~~~sh
 bun run build
@@ -35,7 +35,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now local-landing.service
 ~~~
 
-La capability permite al binario abrir puertos privilegiados sin ejecutarse como root. Reaplica `setcap` después de sustituir el binario: la instalación normalmente elimina la capability. El puerto 80 debe estar libre. La unidad fija `BROWSER=/usr/bin/brave-browser-stable`; cambia ese valor si tu navegador está en otra ruta. Para mantener el servicio activo sin sesión, configura `loginctl enable-linger "$USER"` si tu sistema lo permite.
+The capability lets the binary bind to privileged ports without running as root. Run `setcap` again after replacing the binary: installation normally removes the capability. Port 80 must be available. The service unit sets `BROWSER=/usr/bin/brave-browser-stable`; change it if your browser is elsewhere. To keep the service running without an active login session, configure `loginctl enable-linger "$USER"` if your system permits it.
 
 ~~~sh
 systemctl --user status local-landing.service
