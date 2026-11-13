@@ -6,7 +6,8 @@ After=network.target
 Type=simple
 ExecStart=%h/.local/bin/local-landing
 Environment=BROWSER=/usr/bin/brave-browser-stable
-Restart=no
+Restart=on-failure
+RestartSec=10s
 
 [Install]
 WantedBy=default.target

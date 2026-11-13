@@ -24,6 +24,7 @@
     .placeholder { aspect-ratio: 16 / 10; background: #fff; }
     .caption { display: flex; justify-content: space-between; gap: .5rem; padding: 1rem 1rem .5rem; font-weight: 650; }
     .caption span:last-child { color: #a7b5c7; font-weight: 400; }
+    .capture-status { display: block; padding: 0 1rem .5rem; color: #ffda89; font-size: .85rem; }
     .executable { display: block; padding: 0 1rem .35rem; overflow-wrap: anywhere; }
     .command { display: block; padding: 0 1rem 1rem; color: #a7b5c7; font-size: .85rem; line-height: 1.4; overflow-wrap: anywhere; }
     .tooltip { display: none; position: absolute; z-index: 2; inset: auto 0 0; max-block-size: 60vh; overflow: auto; padding: .75rem; border: 1px solid #bce8d1; border-radius: .5rem; background: #10151d; color: #e7edf5; font: .85rem/1.4 monospace; overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -50,9 +51,13 @@
         if (!response.ok) throw new Error('No se pudo consultar el servicio');
         const data = await response.json();
         refresh.disabled = data.scanning;
-        status.textContent = data.scanning ? 'Buscando servicios y generando capturas…' : data.ports.length ? data.ports.length + (data.ports.length === 1 ? ' servicio disponible.' : ' servicios disponibles.') : 'No se han encontrado servicios HTTP.';
+        const count = data.ports.length ? data.ports.length + (data.ports.length === 1 ? ' servicio disponible.' : ' servicios disponibles.') : 'No se han encontrado servicios HTTP.';
+        const failed = data.services.filter(service => service.capture === 'failed' || service.capture === 'stale').length;
+        const message = data.refreshError ? 'No se ha podido actualizar. Consulta el journal del servicio.' : data.scanning ? 'Buscando servicios y generando capturas…' : data.waitingForSession ? count + ' Capturas pendientes de la sesión gráfica y el portal.' : failed ? count + ' Algunas capturas no se pudieron actualizar.' : count;
+        if (status.textContent !== message) status.textContent = message;
         if (renderedVersion !== data.version) {
-          grid.replaceChildren(...data.services.map(({port, hasImage, executable, command}) => {
+          const focusedHref = grid.contains(document.activeElement) ? document.activeElement.href : null;
+          grid.replaceChildren(...data.services.map(({port, hasImage, executable, command, capture}) => {
             const item = document.createElement('li');
             const link = document.createElement('a');
             link.href = 'http://127.0.0.1:' + port;
@@ -78,7 +83,14 @@
             const fullCommand = command || 'Proceso no disponible';
             const characters = Array.from(fullCommand);
             process.textContent = characters.length > 38 ? characters.slice(0, 37).join('') + '…' : fullCommand;
-            caption.append(name, address); link.append(preview, caption, executableName, process); item.append(link);
+            caption.append(name, address); link.append(preview, caption);
+            if (capture !== 'ready') {
+              const captureStatus = document.createElement('span');
+              captureStatus.className = 'capture-status';
+              captureStatus.textContent = capture === 'stale' ? 'Captura anterior; pendiente de actualizar' : capture === 'failed' ? 'Captura no disponible' : 'Captura pendiente';
+              link.append(captureStatus);
+            }
+            link.append(executableName, process); item.append(link);
             if (characters.length > 38) {
               const tooltip = document.createElement('div');
               tooltip.className = 'tooltip'; tooltip.id = 'command-' + port;
@@ -90,9 +102,10 @@
             }
             return item;
           }));
+          if (focusedHref) [...grid.querySelectorAll('a')].find(link => link.href === focusedHref)?.focus({preventScroll: true});
           renderedVersion = data.version;
         }
-        if (data.scanning) setTimeout(show, 1200);
+        if (data.scanning || data.waitingForSession) setTimeout(show, data.scanning ? 1200 : 5000);
       } catch {
         refresh.disabled = false;
         status.textContent = 'No se puede conectar con Local Landing. Consulta el journal del servicio.';
